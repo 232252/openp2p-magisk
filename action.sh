@@ -4,11 +4,14 @@
 # 作者: 232252
 # 版本: 1.0
 
+MODDIR=${0%/*}
 MODULE_DIR="/data/adb/modules/openp2p"
 OPENP2P_BIN="$MODULE_DIR/openp2p"
-CONFIG_FILE="$MODULE_DIR/config/config.json"
-LOG_DIR="$MODULE_DIR/log"
-LOG_FILE="$LOG_DIR/action.log"
+# 使用 /sdcard/Documents/openp2p 作为配置和日志目录
+OPENP2P_DIR="/sdcard/Documents/openp2p"
+CONFIG_FILE="${OPENP2P_DIR}/config/config.json"
+LOG_DIR="${OPENP2P_DIR}/log"
+LOG_FILE="${LOG_DIR}/action.log"
 PID_FILE="$MODULE_DIR/openp2p.pid"
 
 # 日志输出函数
@@ -57,10 +60,36 @@ start() {
         fi
     fi
     
+    # 检查配置文件目录
+    mkdir -p "${OPENP2P_DIR}/config"
+    mkdir -p "${LOG_DIR}"
+    
+    # 检查配置文件
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo "config.json 不存在，正在从模块目录复制..."
+        log "config.json 不存在，正在从模块目录复制..."
+        
+        # 检查当前目录是否有 config/config.json 文件
+        if [ -f "${MODDIR}/config/config.json" ]; then
+            # 复制当前目录的配置文件到 /sdcard/Documents/openp2p/config/ 目录
+            echo "从模块目录复制默认配置文件..."
+            log "从模块目录复制默认配置文件..."
+            cp "${MODDIR}/config/config.json" "${CONFIG_FILE}"
+            echo "默认配置文件已复制，请在 ${CONFIG_FILE} 中配置 Token"
+            log "默认配置文件已复制，请在 ${CONFIG_FILE} 中配置 Token"
+            exit 1
+        else
+            # 如果模块目录没有配置文件，报错并退出
+            echo "错误: 模块目录中不存在 config/config.json 文件，无法复制到 ${CONFIG_FILE}"
+            log "错误: 模块目录中不存在 config/config.json 文件，无法复制到 ${CONFIG_FILE}"
+            exit 1
+        fi
+    fi
+    
     TOKEN=$(get_token)
     if [ -z "$TOKEN" ] || [ "$TOKEN" = "YOUR_TOKEN_HERE" ]; then
-        echo "错误: 请先在 config/config.json 中配置 Token"
-        log "错误: 请先在 config/config.json 中配置 Token"
+        echo "错误: 请先在 ${CONFIG_FILE} 中配置 Token"
+        log "错误: 请先在 ${CONFIG_FILE} 中配置 Token"
         exit 1
     fi
     

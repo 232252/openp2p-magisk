@@ -1,6 +1,8 @@
 #!/data/adb/magisk/busybox sh
 MODDIR=${0%/*}
-LOG_DIR="${MODDIR}/log"
+# 使用 /sdcard/Documents/openp2p 作为配置和日志目录
+OPENP2P_DIR="/sdcard/Documents/openp2p"
+LOG_DIR="${OPENP2P_DIR}/log"
 LOG_FILE="${LOG_DIR}/service.log"
 mkdir -p "${LOG_DIR}"
 touch "${LOG_FILE}"

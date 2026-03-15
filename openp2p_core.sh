@@ -1,8 +1,10 @@
 #!/data/adb/magisk/busybox sh
 
 MODDIR=${0%/*}
-CONFIG_FILE="${MODDIR}/config/config.json"
-LOG_DIR="${MODDIR}/log"
+# 使用 /sdcard/Documents/openp2p 作为配置和日志目录
+OPENP2P_DIR="/sdcard/Documents/openp2p"
+CONFIG_FILE="${OPENP2P_DIR}/config/config.json"
+LOG_DIR="${OPENP2P_DIR}/log"
 LOG_FILE="${LOG_DIR}/openp2p_core.log"
 MODULE_PROP="${MODDIR}/module.prop"
 OPENP2P="${MODDIR}/openp2p"
@@ -107,13 +109,34 @@ while true; do
             pkill openp2p 2>/dev/null
         fi
     else
+        # 检查配置文件目录
+        mkdir -p "${OPENP2P_DIR}/config"
+        mkdir -p "${LOG_DIR}"
+        
         # 检查配置文件
         if [ ! -f "$CONFIG_FILE" ]; then
-            echo "config.json 不存在"
-            log "config.json 不存在"
-            update_module_description "config.json 不存在"
-            sleep 3s
-            continue
+            echo "config.json 不存在，正在从模块目录复制..."
+            log "config.json 不存在，正在从模块目录复制..."
+            
+            # 检查当前目录是否有 config/config.json 文件
+            if [ -f "${MODDIR}/config/config.json" ]; then
+                # 复制当前目录的配置文件到 /sdcard/Documents/openp2p/config/ 目录
+                echo "从模块目录复制默认配置文件..."
+                log "从模块目录复制默认配置文件..."
+                cp "${MODDIR}/config/config.json" "${CONFIG_FILE}"
+                echo "默认配置文件已复制，请在 ${CONFIG_FILE} 中配置 Token"
+                log "默认配置文件已复制，请在 ${CONFIG_FILE} 中配置 Token"
+                update_module_description "请在 ${CONFIG_FILE} 中配置 Token"
+                sleep 10s
+                continue
+            else
+                # 如果模块目录没有配置文件，报错并退出
+                echo "错误: 模块目录中不存在 config/config.json 文件，无法复制到 ${CONFIG_FILE}"
+                log "错误: 模块目录中不存在 config/config.json 文件，无法复制到 ${CONFIG_FILE}"
+                update_module_description "错误: 模块目录中不存在 config/config.json 文件"
+                sleep 10s
+                continue
+            fi
         fi
         
         # 获取 Token
