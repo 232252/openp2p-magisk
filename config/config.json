@@ -13,5 +13,8 @@
   "LogLevel": 1,
   "MaxLogSize": 1048576,
   "TLSInsecureSkipVerify": true,
-  "Forcev6": false
+  "Forcev6": false,
+  "MonitorInterval": "10s",
+  "MonitorIntervalDesc": "监控间隔时间，支持秒(s)、分钟(m)、小时(h)格式，例如：10s, 1m, 1h",
+  "ConfigDesc": "配置文件参数说明：\n1. network.Token: 字符串，OpenP2P 控制台获取的令牌\n2. network.Node: 字符串，节点名称，留空时自动使用设备名称\n3. network.User: 字符串，用户名\n4. network.ShareBandwidth: 数字，共享带宽，单位Mbps\n5. network.ServerHost: 字符串，服务器主机名\n6. network.ServerIP: 字符串，服务器IP地址\n7. network.ServerPort: 数字，服务器端口\n8. network.PublicIPPort: 数字，公网IP端口\n9. apps: 应用配置，null表示默认配置\n10. LogLevel: 数字，日志级别，1-5，数字越大日志越详细\n11. MaxLogSize: 数字，最大日志大小，单位字节\n12. TLSInsecureSkipVerify: 布尔值，是否跳过TLS验证\n13. Forcev6: 布尔值，是否强制使用IPv6\n14. MonitorInterval: 字符串，监控间隔时间，支持秒(s)、分钟(m)、小时(h)格式，例如：10s, 1m, 1h"
 }
