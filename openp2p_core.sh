@@ -7,6 +7,10 @@ LOG_FILE="${LOG_DIR}/openp2p_core.log"
 MODULE_PROP="${MODDIR}/module.prop"
 OPENP2P="${MODDIR}/openp2p"
 
+# 创建日志目录
+mkdir -p "${LOG_DIR}"
+touch "${LOG_FILE}"
+
 # 日志输出函数
 log() {
     local message="$(date "+%Y-%m-%d %H:%M:%S") $1"
@@ -166,13 +170,31 @@ while true; do
                     # 进程存在但可能没有网络连接，尝试重启
                     echo "OpenP2P 进程存在但网络连接异常，尝试重启..."
                     log "OpenP2P 进程存在但网络连接异常，尝试重启..."
-                    pkill openp2p 2>/dev/null
-                    sleep 2
+                    
+                    # 强制停止所有 openp2p 进程
+                    pkill -9 openp2p 2>/dev/null
+                    sleep 3
+                    
+                    # 确认进程已停止
+                    if pgrep -f 'openp2p -d' >/dev/null; then
+                        echo "警告: 进程仍未停止，再次尝试..."
+                        log "警告: 进程仍未停止，再次尝试..."
+                        pkill -9 openp2p 2>/dev/null
+                        sleep 2
+                    fi
+                    
                     # 重新启动服务
                     echo "正在重新启动 OpenP2P..."
                     log "正在重新启动 OpenP2P..."
                     echo "设备名称: ${DEVICE_NAME}"
                     log "设备名称: ${DEVICE_NAME}"
+                    
+                    # 清理旧日志
+                    rm -f "${LOG_DIR}/openp2p.log"
+                    touch "${LOG_DIR}/openp2p.log"
+                    
+                    # 启动服务
+                    cd ${MODDIR}
                     TZ=Asia/Shanghai ${OPENP2P} -d \
                         -token ${TOKEN} \
                         -node "${DEVICE_NAME}" \
@@ -180,17 +202,38 @@ while true; do
                         -loglevel 1 \
                         -sharebandwidth 50 \
                         -insecure > "${LOG_DIR}/openp2p.log" 2>&1 &
-                    sleep 5s
+                    
+                    # 等待服务启动
+                    sleep 8
                     
                     # 检查重启是否成功
                     if pgrep -f 'openp2p -d' >/dev/null; then
-                        echo "OpenP2P 重启成功"
-                        log "OpenP2P 重启成功"
-                        update_module_description "主程序已开启 | 节点: ${DEVICE_NAME}"
+                        echo "OpenP2P 重启成功，检查网络连接..."
+                        log "OpenP2P 重启成功，检查网络连接..."
+                        
+                        # 检查网络连接
+                        sleep 2
+                        if netstat -an 2>/dev/null | grep -E "27183|26188" | grep -q ESTABLISHED; then
+                            echo "OpenP2P 重启成功且网络连接正常"
+                            log "OpenP2P 重启成功且网络连接正常"
+                            update_module_description "主程序已开启 | 节点: ${DEVICE_NAME}"
+                        else
+                            echo "OpenP2P 重启成功但网络连接异常"
+                            log "OpenP2P 重启成功但网络连接异常"
+                            update_module_description "主程序已开启 | 网络连接异常"
+                            # 显示日志末尾，便于排查
+                            echo "=== openp2p.log 末尾内容 ==="
+                            tail -10 "${LOG_DIR}/openp2p.log"
+                            echo "========================="
+                        fi
                     else
                         echo "OpenP2P 重启失败"
                         log "OpenP2P 重启失败"
                         update_module_description "主程序重启失败，请检查日志"
+                        # 显示日志末尾，便于排查
+                        echo "=== openp2p.log 末尾内容 ==="
+                        tail -10 "${LOG_DIR}/openp2p.log"
+                        echo "========================="
                     fi
                 fi
             else
