@@ -52,15 +52,36 @@ adb push openp2p-magisk.zip /sdcard/
 
 ## ⚙️ 配置
 
-安装后，编辑 `/data/adb/modules/openp2p/config/config.json`：
+### 配置文件位置
+
+安装后，配置文件位于：
+
+```
+/sdcard/Documents/openp2p/config/config.json
+```
+
+### 配置文件参数解释
 
 ```json
 {
   "network": {
-    "Token": "YOUR_TOKEN_HERE",
-    "ShareBandwidth": 50,
-    "ServerHost": "api.openp2p.cn"
-  }
+    "Token": "YOUR_TOKEN_HERE",       // OpenP2P 控制台获取的令牌
+    "Node": "",                       // 节点名称，留空时自动使用设备名称
+    "User": "",                       // 用户名
+    "ShareBandwidth": 50,              // 共享带宽，单位Mbps
+    "ServerHost": "api.openp2p.cn",   // 服务器主机名
+    "ServerIP": "",                   // 服务器IP地址
+    "ServerPort": 27183,               // 服务器端口
+    "PublicIPPort": 7037               // 公网IP端口
+  },
+  "apps": null,                        // 应用配置，null表示默认配置
+  "LogLevel": 1,                       // 日志级别，1-5，数字越大日志越详细
+  "MaxLogSize": 1048576,               // 最大日志大小，单位字节
+  "TLSInsecureSkipVerify": true,      // 是否跳过TLS验证
+  "Forcev6": false,                    // 是否强制使用IPv6
+  "MonitorInterval": "10s",           // 监控间隔时间，支持秒(s)、分钟(m)、小时(h)格式，例如：10s, 1m, 1h
+  "MonitorIntervalDesc": "监控间隔时间，支持秒(s)、分钟(m)、小时(h)格式，例如：10s, 1m, 1h",
+  "ConfigDesc": "配置文件参数说明：\n1. network.Token: 字符串，OpenP2P 控制台获取的令牌\n2. network.Node: 字符串，节点名称，留空时自动使用设备名称\n3. network.User: 字符串，用户名\n4. network.ShareBandwidth: 数字，共享带宽，单位Mbps\n5. network.ServerHost: 字符串，服务器主机名\n6. network.ServerIP: 字符串，服务器IP地址\n7. network.ServerPort: 数字，服务器端口\n8. network.PublicIPPort: 数字，公网IP端口\n9. apps: 应用配置，null表示默认配置\n10. LogLevel: 数字，日志级别，1-5，数字越大日志越详细\n11. MaxLogSize: 数字，最大日志大小，单位字节\n12. TLSInsecureSkipVerify: 布尔值，是否跳过TLS验证\n13. Forcev6: 布尔值，是否强制使用IPv6\n14. MonitorInterval: 字符串，监控间隔时间，支持秒(s)、分钟(m)、小时(h)格式，例如：10s, 1m, 1h"
 }
 ```
 
@@ -96,7 +117,20 @@ adb push openp2p-magisk.zip /sdcard/
 ├── action.sh         # 管理脚本
 ├── uninstall.sh      # 卸载脚本
 └── config/
-    └── config.json   # 配置文件
+    └── config.json   # 默认配置文件（安装时会复制到 /sdcard/Documents/openp2p/config/）
+```
+
+### 数据目录结构
+
+```
+/sdcard/Documents/openp2p/
+├── config/
+│   └── config.json   # 配置文件（实际使用的配置文件）
+└── log/              # 日志目录
+    ├── service.log        # service.sh 日志
+    ├── openp2p_core.log   # openp2p_core.sh 日志
+    ├── action.log         # action.sh 日志
+    └── openp2p.log        # OpenP2P 主程序日志
 ```
 
 ## 🔄 自动更新
