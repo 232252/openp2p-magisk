@@ -103,30 +103,32 @@ while true; do
             pkill openp2p 2>/dev/null
         fi
     else
+        # 检查配置文件
+        if [ ! -f "$CONFIG_FILE" ]; then
+            echo "config.json 不存在"
+            log "config.json 不存在"
+            update_module_description "config.json 不存在"
+            sleep 3s
+            continue
+        fi
+        
+        # 获取 Token
+        TOKEN=$(get_token)
+        if [ -z "$TOKEN" ] || [ "$TOKEN" = "YOUR_TOKEN_HERE" ]; then
+            echo "请先在 config/config.json 中配置 Token"
+            log "请先在 config/config.json 中配置 Token"
+            update_module_description "请先配置 Token"
+            sleep 10s
+            continue
+        fi
+        
+        # 获取设备名称
+        DEVICE_NAME="$(getprop ro.product.brand)-$(getprop ro.product.model)"
+        
         # 检查进程是否存在
         if ! pgrep -f 'openp2p -d' >/dev/null; then
-            if [ ! -f "$CONFIG_FILE" ]; then
-                echo "config.json 不存在"
-                log "config.json 不存在"
-                update_module_description "config.json 不存在"
-                sleep 3s
-                continue
-            fi
-            
-            TOKEN=$(get_token)
-            if [ -z "$TOKEN" ] || [ "$TOKEN" = "YOUR_TOKEN_HERE" ]; then
-                echo "请先在 config/config.json 中配置 Token"
-                log "请先在 config/config.json 中配置 Token"
-                update_module_description "请先配置 Token"
-                sleep 10s
-                continue
-            fi
-
             echo "正在启动 OpenP2P..."
             log "正在启动 OpenP2P..."
-            
-            # 获取设备名称
-            DEVICE_NAME="$(getprop ro.product.brand)-$(getprop ro.product.model)"
             echo "设备名称: ${DEVICE_NAME}"
             log "设备名称: ${DEVICE_NAME}"
             
@@ -153,8 +155,48 @@ while true; do
                 update_module_description "主程序启动失败，请检查日志"
             fi
         else
-            echo "OpenP2P 运行中..."
-            log "OpenP2P 运行中..."
+            # 检查进程是否真正正常运行
+            OPENP2P_PID=$(pgrep -f 'openp2p -d')
+            if [ -n "$OPENP2P_PID" ]; then
+                # 检查进程是否有网络连接
+                if netstat -an 2>/dev/null | grep -E "27183|26188" | grep -q ESTABLISHED; then
+                    echo "OpenP2P 运行中..."
+                    log "OpenP2P 运行中..."
+                else
+                    # 进程存在但可能没有网络连接，尝试重启
+                    echo "OpenP2P 进程存在但网络连接异常，尝试重启..."
+                    log "OpenP2P 进程存在但网络连接异常，尝试重启..."
+                    pkill openp2p 2>/dev/null
+                    sleep 2
+                    # 重新启动服务
+                    echo "正在重新启动 OpenP2P..."
+                    log "正在重新启动 OpenP2P..."
+                    echo "设备名称: ${DEVICE_NAME}"
+                    log "设备名称: ${DEVICE_NAME}"
+                    TZ=Asia/Shanghai ${OPENP2P} -d \
+                        -token ${TOKEN} \
+                        -node "${DEVICE_NAME}" \
+                        -serverhost api.openp2p.cn \
+                        -loglevel 1 \
+                        -sharebandwidth 50 \
+                        -insecure > "${LOG_DIR}/openp2p.log" 2>&1 &
+                    sleep 5s
+                    
+                    # 检查重启是否成功
+                    if pgrep -f 'openp2p -d' >/dev/null; then
+                        echo "OpenP2P 重启成功"
+                        log "OpenP2P 重启成功"
+                        update_module_description "主程序已开启 | 节点: ${DEVICE_NAME}"
+                    else
+                        echo "OpenP2P 重启失败"
+                        log "OpenP2P 重启失败"
+                        update_module_description "主程序重启失败，请检查日志"
+                    fi
+                fi
+            else
+                echo "OpenP2P 未运行..."
+                log "OpenP2P 未运行..."
+            fi
         fi
     fi
     
