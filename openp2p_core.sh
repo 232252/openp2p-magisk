@@ -1,4 +1,4 @@
-#!/system/bin/sh
+#!/data/adb/magisk/busybox sh
 
 MODDIR=${0%/*}
 CONFIG_FILE="${MODDIR}/config/config.json"
@@ -171,40 +171,17 @@ while true; do
                     echo "OpenP2P 进程存在但网络连接异常，尝试重启..."
                     log "OpenP2P 进程存在但网络连接异常，尝试重启..."
                     
-                    # 强制停止所有 openp2p 进程
-                    pkill -9 openp2p 2>/dev/null
-                    sleep 3
+                    # 使用 action.sh restart 命令重启服务
+                    echo "使用 action.sh restart 命令重启服务..."
+                    log "使用 action.sh restart 命令重启服务..."
                     
-                    # 确认进程已停止
-                    if pgrep -f 'openp2p -d' >/dev/null; then
-                        echo "警告: 进程仍未停止，再次尝试..."
-                        log "警告: 进程仍未停止，再次尝试..."
-                        pkill -9 openp2p 2>/dev/null
-                        sleep 2
-                    fi
+                    # 执行重启命令
+                    "${MODDIR}/action.sh" restart
                     
-                    # 重新启动服务
-                    echo "正在重新启动 OpenP2P..."
-                    log "正在重新启动 OpenP2P..."
-                    echo "设备名称: ${DEVICE_NAME}"
-                    log "设备名称: ${DEVICE_NAME}"
-                    
-                    # 清理旧日志
-                    rm -f "${LOG_DIR}/openp2p.log"
-                    touch "${LOG_DIR}/openp2p.log"
-                    
-                    # 启动服务
-                    cd ${MODDIR}
-                    TZ=Asia/Shanghai ${OPENP2P} -d \
-                        -token ${TOKEN} \
-                        -node "${DEVICE_NAME}" \
-                        -serverhost api.openp2p.cn \
-                        -loglevel 1 \
-                        -sharebandwidth 50 \
-                        -insecure > "${LOG_DIR}/openp2p.log" 2>&1 &
-                    
-                    # 等待服务启动
-                    sleep 8
+                    # 等待重启完成
+                    echo "等待服务重启完成..."
+                    log "等待服务重启完成..."
+                    sleep 10
                     
                     # 检查重启是否成功
                     if pgrep -f 'openp2p -d' >/dev/null; then
