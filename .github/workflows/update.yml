@@ -12,6 +12,9 @@ permissions:
 jobs:
   check-and-update:
     runs-on: ubuntu-latest
+    env:
+      # 修复 Node.js 20 弃用问题：强制使用 Node.js 24
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     
     steps:
     - name: Checkout repository
@@ -23,17 +26,31 @@ jobs:
     - name: Get upstream version
       id: upstream
       run: |
+        set -e
         # 获取 OpenP2P 上游最新版本
-        UPSTREAM_VERSION=$(curl -s https://api.github.com/repos/openp2p-cn/openp2p/releases/latest | jq -r '.tag_name' | sed 's/v//')
+        UPSTREAM_VERSION=$(curl -sSf https://api.github.com/repos/openp2p-cn/openp2p/releases/latest | jq -r '.tag_name' | sed 's/v//')
+        
+        if [ -z "$UPSTREAM_VERSION" ]; then
+          echo "::error::Failed to get upstream version"
+          exit 1
+        fi
+        
         echo "upstream_version=$UPSTREAM_VERSION" >> $GITHUB_OUTPUT
         echo "Upstream version: $UPSTREAM_VERSION"
         
     - name: Get current version
       id: current
       run: |
+        set -e
         # 获取当前模块版本（去除beta后缀）
         CURRENT_FULL=$(grep "version=" module.prop | cut -d'=' -f2)
-        CURRENT_BASE=$(echo $CURRENT_FULL | sed 's/-beta.*//')
+        
+        if [ -z "$CURRENT_FULL" ]; then
+          echo "::error::Failed to get current version from module.prop"
+          exit 1
+        fi
+        
+        CURRENT_BASE=$(echo "$CURRENT_FULL" | sed 's/-beta.*//')
         echo "current_full=$CURRENT_FULL" >> $GITHUB_OUTPUT
         echo "current_base=$CURRENT_BASE" >> $GITHUB_OUTPUT
         echo "Current version: $CURRENT_FULL (base: $CURRENT_BASE)"
@@ -59,9 +76,9 @@ jobs:
         UPSTREAM="${{ steps.upstream.outputs.upstream_version }}"
         
         # 解析上游版本号
-        MAJOR=$(echo $UPSTREAM | cut -d'.' -f1)
-        MINOR=$(echo $UPSTREAM | cut -d'.' -f2)
-        PATCH=$(echo $UPSTREAM | cut -d'.' -f3)
+        MAJOR=$(echo "$UPSTREAM" | cut -d'.' -f1)
+        MINOR=$(echo "$UPSTREAM" | cut -d'.' -f2)
+        PATCH=$(echo "$UPSTREAM" | cut -d'.' -f3)
         
         # 上游更新：次版本号+1，新beta1
         NEW_MINOR=$((MINOR + 1))
@@ -76,6 +93,7 @@ jobs:
     - name: Download upstream binary
       if: steps.check.outputs.update_needed == 'true'
       run: |
+        set -e
         VERSION=${{ steps.upstream.outputs.upstream_version }}
         echo "Downloading OpenP2P v$VERSION for arm64..."
         
@@ -83,6 +101,13 @@ jobs:
         tar -xzf openp2p.tar.gz
         chmod 755 openp2p
         rm openp2p.tar.gz
+        
+        # 验证二进制文件
+        if [ ! -f "openp2p" ]; then
+          echo "::error::Binary file not found after extraction"
+          exit 1
+        fi
+        echo "Binary downloaded successfully: $(ls -la openp2p)"
         
     - name: Update module.prop
       if: steps.check.outputs.update_needed == 'true'
@@ -102,6 +127,7 @@ jobs:
       if: steps.check.outputs.update_needed == 'true'
       run: |
         chmod 755 *.sh openp2p 2>/dev/null || true
+        echo "Permissions fixed"
         
     - name: Commit and push changes
       if: steps.check.outputs.update_needed == 'true'
@@ -110,6 +136,9 @@ jobs:
         git config user.name "232252"
         git add -A
         git commit -m "chore: update to v${{ steps.newver.outputs.new_version }} from upstream v${{ steps.newver.outputs.upstream_version }}"
+        
+        # 先拉取远程更新，避免非快进推送失败
+        git pull --rebase origin main || true
         git push origin HEAD:main
         
     - name: Create tag
