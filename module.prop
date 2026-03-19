@@ -1,7 +1,6 @@
 id=openp2p
-name=OpenP2P
-version=3.25.0-beta1
-versionCode=32500
-author=232252
-description=OpenP2P内网穿透服务 | Beta版本 | 上游v3.24.23 自动更新
-updateJson=https://raw.githubusercontent.com/232252/openp2p-magisk/main/update.json
+name=OpenP2P 内网穿透
+version=v3.25.8
+versionCode=32508
+author=OpenP2P Team
+description=OpenP2P 内网穿透服务。支持 TCP/UDP 自动 NAT 穿透。配置: /sdcard/Documents/openp2p/config/config.json
