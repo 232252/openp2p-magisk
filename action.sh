@@ -215,6 +215,11 @@ logs() {
 }
 
 # 主入口
+# 空参执行start
+if [ $# -eq 0 ]; then
+    set -- "start"  # 将第一个参数设置为start
+fi
+#有参命令
 case "$1" in
     start)
         start
