@@ -1,6 +1,6 @@
 id=openp2p
 name=OpenP2P 内网穿透
-version=3.26.1-beta1
-versionCode=32610
+version=3.25.11
+versionCode=3025011
 author=OpenP2P Team
-description=OpenP2P内网穿透服务 | Beta版本 | 上游v3.25.11 自动更新
+description=OpenP2P内网穿透服务 | 基于上游 OpenP2P v3.25.11

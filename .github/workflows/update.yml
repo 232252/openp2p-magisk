@@ -13,72 +13,64 @@ jobs:
   check-and-update:
     runs-on: ubuntu-latest
     env:
-      # 修复 Node.js 20 弃用问题：强制使用 Node.js 24
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # 获取完整历史用于版本计算
-        token: ${{ secrets.GITHUB_TOKEN }}  # 使用内置token
-    
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Get upstream version
       id: upstream
       run: |
         set -e
-        # 获取 OpenP2P 上游最新版本
         UPSTREAM_VERSION=$(curl -sSf https://api.github.com/repos/openp2p-cn/openp2p/releases/latest | jq -r '.tag_name' | sed 's/v//')
-        
+
         if [ -z "$UPSTREAM_VERSION" ]; then
           echo "::error::Failed to get upstream version"
           exit 1
         fi
-        
+
         echo "upstream_version=$UPSTREAM_VERSION" >> $GITHUB_OUTPUT
         echo "Upstream version: $UPSTREAM_VERSION"
-        
+
     - name: Get current version
       id: current
       run: |
         set -e
-        # 获取当前模块版本（去除beta后缀）
-        CURRENT_FULL=$(grep "version=" module.prop | cut -d'=' -f2)
-        
+        CURRENT_FULL=$(grep "^version=" module.prop | cut -d'=' -f2)
+
         if [ -z "$CURRENT_FULL" ]; then
           echo "::error::Failed to get current version from module.prop"
           exit 1
         fi
-        
-        CURRENT_BASE=$(echo "$CURRENT_FULL" | sed 's/-beta.*//')
+
         echo "current_full=$CURRENT_FULL" >> $GITHUB_OUTPUT
-        echo "current_base=$CURRENT_BASE" >> $GITHUB_OUTPUT
-        echo "Current version: $CURRENT_FULL (base: $CURRENT_BASE)"
-        
+        echo "Current version: $CURRENT_FULL"
+
     - name: Check if update needed
       id: check
       run: |
         UPSTREAM="${{ steps.upstream.outputs.upstream_version }}"
-        CURRENT="${{ steps.current.outputs.current_base }}"
-        
+        CURRENT="${{ steps.current.outputs.current_full }}"
+
         echo "Comparing: upstream=$UPSTREAM vs current=$CURRENT"
-        
-        # 解析版本号
+
         UP_MAJOR=$(echo "$UPSTREAM" | cut -d'.' -f1)
         UP_MINOR=$(echo "$UPSTREAM" | cut -d'.' -f2)
         UP_PATCH=$(echo "$UPSTREAM" | cut -d'.' -f3)
-        
+
         CUR_MAJOR=$(echo "$CURRENT" | cut -d'.' -f1)
         CUR_MINOR=$(echo "$CURRENT" | cut -d'.' -f2)
         CUR_PATCH=$(echo "$CURRENT" | cut -d'.' -f3)
-        
-        # 转换为数字比较 (例如 3.24.23 -> 32423, 3.25.0 -> 32500)
-        UP_NUM=$((UP_MAJOR * 10000 + UP_MINOR * 100 + UP_PATCH))
-        CUR_NUM=$((CUR_MAJOR * 10000 + CUR_MINOR * 100 + CUR_PATCH))
-        
+
+        UP_NUM=$((UP_MAJOR * 1000000 + UP_MINOR * 1000 + UP_PATCH))
+        CUR_NUM=$((CUR_MAJOR * 1000000 + CUR_MINOR * 1000 + CUR_PATCH))
+
         echo "Version numbers: upstream=$UP_NUM vs current=$CUR_NUM"
-        
-        # 只有上游版本更大时才需要更新
+
         if [ "$UP_NUM" -gt "$CUR_NUM" ]; then
           echo "update_needed=true" >> $GITHUB_OUTPUT
           echo "✅ Update needed: v$CURRENT -> v$UPSTREAM"
@@ -86,121 +78,145 @@ jobs:
           echo "update_needed=false" >> $GITHUB_OUTPUT
           echo "⏭️ Already up to date or newer (current v$CURRENT >= upstream v$UPSTREAM)"
         fi
-        
+
     - name: Calculate new version
       id: newver
       if: steps.check.outputs.update_needed == 'true'
       run: |
         UPSTREAM="${{ steps.upstream.outputs.upstream_version }}"
-        
-        # 解析上游版本号
+
         MAJOR=$(echo "$UPSTREAM" | cut -d'.' -f1)
         MINOR=$(echo "$UPSTREAM" | cut -d'.' -f2)
         PATCH=$(echo "$UPSTREAM" | cut -d'.' -f3)
-        
-        # 上游更新：次版本号+1，新beta1
-        NEW_MINOR=$((MINOR + 1))
-        NEW_VERSION="${MAJOR}.${NEW_MINOR}.0-beta1"
-        NEW_VERSION_CODE="${MAJOR}${NEW_MINOR}00"
-        
+
+        # 直接使用上游版本号作为模块版本号
+        NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+        NEW_VERSION_CODE=$((MAJOR * 1000000 + MINOR * 1000 + PATCH))
+
         echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
         echo "new_version_code=$NEW_VERSION_CODE" >> $GITHUB_OUTPUT
         echo "upstream_version=$UPSTREAM" >> $GITHUB_OUTPUT
-        echo "New version: $NEW_VERSION (from upstream $UPSTREAM)"
-        
+        echo "New version: $NEW_VERSION (versionCode: $NEW_VERSION_CODE, upstream: $UPSTREAM)"
+
     - name: Download upstream binary
       if: steps.check.outputs.update_needed == 'true'
       run: |
         set -e
         VERSION=${{ steps.upstream.outputs.upstream_version }}
         echo "Downloading OpenP2P v$VERSION for arm64..."
-        
+
         curl -L -o openp2p.tar.gz "https://github.com/openp2p-cn/openp2p/releases/download/v${VERSION}/openp2p-${VERSION}.linux-arm64.tar.gz"
         tar -xzf openp2p.tar.gz
         chmod 755 openp2p
         rm openp2p.tar.gz
-        
-        # 验证二进制文件
+
         if [ ! -f "openp2p" ]; then
           echo "::error::Binary file not found after extraction"
           exit 1
         fi
         echo "Binary downloaded successfully: $(ls -la openp2p)"
-        
+
     - name: Update module.prop
       if: steps.check.outputs.update_needed == 'true'
       run: |
         VERSION=${{ steps.newver.outputs.new_version }}
         VERSION_CODE=${{ steps.newver.outputs.new_version_code }}
         UPSTREAM=${{ steps.newver.outputs.upstream_version }}
-        
+
         sed -i "s/^version=.*/version=$VERSION/" module.prop
         sed -i "s/^versionCode=.*/versionCode=$VERSION_CODE/" module.prop
-        sed -i "s/^description=.*/description=OpenP2P内网穿透服务 | Beta版本 | 上游v$UPSTREAM 自动更新/" module.prop
-        
+        sed -i "s/^description=.*/description=OpenP2P内网穿透服务 | 基于上游 OpenP2P v$UPSTREAM/" module.prop
+
         echo "Updated module.prop:"
         cat module.prop
-        
+
+    - name: Update README.md
+      if: steps.check.outputs.update_needed == 'true'
+      run: |
+        VERSION=${{ steps.newver.outputs.new_version }}
+        VERSION_CODE=${{ steps.newver.outputs.new_version_code }}
+        UPSTREAM=${{ steps.newver.outputs.upstream_version }}
+
+        sed -i "s/上游版本.*/上游版本: v$UPSTREAM/" README.md
+        sed -i "s/模块版本.*/模块版本: $VERSION_CODE/" README.md
+        sed -i "s|download/[v0-9.]*\.zip|download/v$VERSION/openp2p-magisk-v$VERSION.zip|" README.md
+        sed -i "s|openp2p-magisk-v[0-9.]*\.zip|openp2p-magisk-v$VERSION.zip|" README.md
+
+        echo "Updated README.md:"
+        grep -E "(上游版本|模块版本|magisk-v)" README.md
+
+    - name: Update update.json
+      if: steps.check.outputs.update_needed == 'true'
+      run: |
+        VERSION=${{ steps.newver.outputs.new_version }}
+        VERSION_CODE=${{ steps.newver.outputs.new_version_code }}
+
+        echo '{
+          "version": "'${VERSION}'",
+          "versionCode": '${VERSION_CODE}',
+          "zipUrl": "https://github.com/232252/openp2p-magisk/releases/download/v'${VERSION}'/openp2p-magisk.zip",
+          "changelog": "https://github.com/232252/openp2p-magisk/blob/main/CHANGELOG.md"
+        }' > update.json
+
+        echo "Updated update.json:"
+        cat update.json
+
     - name: Fix script permissions
       if: steps.check.outputs.update_needed == 'true'
       run: |
         chmod 755 *.sh openp2p 2>/dev/null || true
         echo "Permissions fixed"
-        
+
     - name: Commit and push changes
       if: steps.check.outputs.update_needed == 'true'
       run: |
         git config user.email "2322527175@qq.com"
         git config user.name "232252"
-        
-        # 添加所有更改
+
         git add -A
-        
-        # 检查是否有更改需要提交
+
         if git diff --staged --quiet; then
           echo "No changes to commit"
           exit 0
         fi
-        
+
         git commit -m "chore: update to v${{ steps.newver.outputs.new_version }} from upstream v${{ steps.newver.outputs.upstream_version }}"
-        
-        # 拉取远程更新并变基
+
         echo "Pulling latest changes from origin/main..."
         git fetch origin main
         git rebase origin/main
-        
-        # 推送到 main 分支
+
         echo "Pushing to origin/main..."
         git push origin HEAD:main
-        
+
     - name: Create tag
       if: steps.check.outputs.update_needed == 'true'
       run: |
-        git tag -a v${{ steps.newver.outputs.new_version }} -m "Beta release from upstream v${{ steps.newver.outputs.upstream_version }}"
+        git tag -a v${{ steps.newver.outputs.new_version }} -m "Release from upstream v${{ steps.newver.outputs.upstream_version }}"
         git push origin v${{ steps.newver.outputs.new_version }}
-        
+
     - name: Package module
       if: steps.check.outputs.update_needed == 'true'
       run: |
         VERSION=${{ steps.newver.outputs.new_version }}
-        zip -r openp2p-magisk-${VERSION}.zip . -x "*.git*" -x "*.zip" -x "*.github*"
-        ls -la openp2p-magisk-${VERSION}.zip
-        
+        zip -r openp2p-magisk-v${VERSION}.zip . -x "*.git*" -x "*.zip" -x "*.github*"
+        ls -la openp2p-magisk-v${VERSION}.zip
+
     - name: Create Release
       if: steps.check.outputs.update_needed == 'true'
       uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ steps.newver.outputs.new_version }}
-        name: v${{ steps.newver.outputs.new_version }} Beta
+        name: v${{ steps.newver.outputs.new_version }}
         body: |
           ## v${{ steps.newver.outputs.new_version }}
-          
+
           ### Changes
           - Sync from upstream OpenP2P v${{ steps.newver.outputs.upstream_version }}
           - Updated binary file
-          
+
           Upstream: https://github.com/openp2p-cn/openp2p/releases/tag/v${{ steps.newver.outputs.upstream_version }}
-        prerelease: true
-        files: openp2p-magisk-${{ steps.newver.outputs.new_version }}.zip
+        prerelease: false
+        files: openp2p-magisk-v${{ steps.newver.outputs.new_version }}.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
