@@ -2,7 +2,9 @@
 
 # OpenP2P Magisk Module 管理脚本
 # 作者: 232252
-# 版本: 1.0
+# 版本: 1.1
+
+set -u
 
 MODDIR=${0%/*}
 
@@ -25,17 +27,25 @@ log() {
     echo "$message" >> "${LOG_FILE}"
 }
 
-# 从配置文件读取 Token（支持字符串和数字格式）
+# 从配置文件读取 Token（支持字符串和数字格式，且仅取第一个匹配项）
 get_token() {
-    if [ -f "$CONFIG_FILE" ]; then
-        # 尝试匹配字符串格式
-        TOKEN=$(grep -o '"Token": *"[^"]*"' "$CONFIG_FILE" | sed 's/"Token": *"\([^"]*\)"/\1/')
-        if [ -z "$TOKEN" ] || [ "$TOKEN" = "YOUR_TOKEN_HERE" ]; then
-            # 尝试匹配数字格式
-            TOKEN=$(grep -o '"Token": *[0-9]*' "$CONFIG_FILE" | grep -o '[0-9]*')
-        fi
-        echo "$TOKEN"
+    if [ ! -f "$CONFIG_FILE" ]; then
+        return 1
     fi
+    # 优先匹配字符串格式
+    local token
+    token=$(grep -oE '"Token"[[:space:]]*:[[:space:]]*"[^"]+"' "$CONFIG_FILE" | head -n 1 | sed -E 's/.*"Token"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+    if [ -n "$token" ] && [ "$token" != "YOUR_TOKEN_HERE" ]; then
+        echo "$token"
+        return 0
+    fi
+    # 退回数字格式
+    token=$(grep -oE '"Token"[[:space:]]*:[[:space:]]*[0-9]+' "$CONFIG_FILE" | head -n 1 | grep -oE '[0-9]+$')
+    if [ -n "$token" ]; then
+        echo "$token"
+        return 0
+    fi
+    return 1
 }
 
 # 更新模块描述
@@ -45,7 +55,10 @@ update_status() {
     local prop_file="$MODULE_DIR/module.prop"
     
     if [ -f "$prop_file" ]; then
-        sed -i "s/^description=.*/description=OpenP2P内网穿透服务 | $status | Token: $token/" "$prop_file"
+        # 防止特殊字符破坏 sed
+        local safe_status=$(echo "$status" | tr -d '|/\\')
+        local safe_token=$(echo "$token" | tr -d '|/\\')
+        sed -i "s|^description=.*|description=OpenP2P内网穿透服务 | ${safe_status} | Token: ${safe_token}|" "$prop_file"
     fi
 }
 
@@ -62,6 +75,8 @@ start() {
             log "OpenP2P 已在运行 (PID: $PID)"
             exit 0
         fi
+        # 僵尸 PID 文件,清理掉
+        rm -f "$PID_FILE"
     fi
     
     # 检查配置文件目录
@@ -70,8 +85,8 @@ start() {
     
     # 检查配置文件
     if [ ! -f "$CONFIG_FILE" ]; then
-        echo "config.json 不存在，正在从模块目录复制..."
-        log "config.json 不存在，正在从模块目录复制..."
+        echo "config.json 不存在,正在从模块目录复制..."
+        log "config.json 不存在,正在从模块目录复制..."
         
         # 检查当前目录是否有 config/config.json 文件
         if [ -f "${MODDIR}/config/config.json" ]; then
@@ -79,21 +94,30 @@ start() {
             echo "从模块目录复制默认配置文件..."
             log "从模块目录复制默认配置文件..."
             cp "${MODDIR}/config/config.json" "${CONFIG_FILE}"
-            echo "默认配置文件已复制，请在 ${CONFIG_FILE} 中配置 Token"
-            log "默认配置文件已复制，请在 ${CONFIG_FILE} 中配置 Token"
+            echo "默认配置文件已复制,请在 ${CONFIG_FILE} 中配置 Token"
+            log "默认配置文件已复制,请在 ${CONFIG_FILE} 中配置 Token"
+            update_status "请配置 Token" "-"
             exit 1
         else
-            # 如果模块目录没有配置文件，报错并退出
-            echo "错误: 模块目录中不存在 config/config.json 文件，无法复制到 ${CONFIG_FILE}"
-            log "错误: 模块目录中不存在 config/config.json 文件，无法复制到 ${CONFIG_FILE}"
+            # 如果模块目录没有配置文件,报错并退出
+            echo "错误: 模块目录中不存在 config/config.json 文件,无法复制到 ${CONFIG_FILE}"
+            log "错误: 模块目录中不存在 config/config.json 文件,无法复制到 ${CONFIG_FILE}"
+            update_status "缺配置文件" "-"
             exit 1
         fi
     fi
     
-    TOKEN=$(get_token)
+    if ! TOKEN=$(get_token); then
+        echo "错误: 请先在 ${CONFIG_FILE} 中配置 Token"
+        log "错误: 请先在 ${CONFIG_FILE} 中配置 Token"
+        update_status "请配置 Token" "-"
+        exit 1
+    fi
+    
     if [ -z "$TOKEN" ] || [ "$TOKEN" = "YOUR_TOKEN_HERE" ]; then
         echo "错误: 请先在 ${CONFIG_FILE} 中配置 Token"
         log "错误: 请先在 ${CONFIG_FILE} 中配置 Token"
+        update_status "请配置 Token" "-"
         exit 1
     fi
     
@@ -106,27 +130,23 @@ start() {
     
     cd "$MODULE_DIR"
     nohup "$OPENP2P_BIN" -d -token "$TOKEN" -node "$DEVICE_NAME" > "${LOG_DIR}/openp2p.log" 2>&1 &
-    echo $! > "$PID_FILE"
-    echo "启动命令已执行，PID: $!"
-    log "启动命令已执行，PID: $!"
+    PID=$!
+    echo $PID > "$PID_FILE"
+    echo "启动命令已执行,PID: $PID"
+    log "启动命令已执行,PID: $PID"
     
     sleep 2
     
-    if [ -f "$PID_FILE" ]; then
-        PID=$(cat "$PID_FILE")
-        if kill -0 $PID 2>/dev/null; then
-            echo "OpenP2P 已启动 (PID: $PID)"
-            log "OpenP2P 已启动 (PID: $PID)"
-            update_status "运行中" "$TOKEN"
-        else
-            echo "启动失败，请查看日志: ${LOG_DIR}/openp2p.log"
-            log "启动失败，请查看日志: ${LOG_DIR}/openp2p.log"
-            tail -10 "${LOG_DIR}/openp2p.log"
-            exit 1
-        fi
+    if kill -0 $PID 2>/dev/null; then
+        echo "OpenP2P 已启动 (PID: $PID)"
+        log "OpenP2P 已启动 (PID: $PID)"
+        update_status "运行中" "$TOKEN"
     else
-        echo "启动失败"
-        log "启动失败"
+        echo "启动失败,请查看日志: ${LOG_DIR}/openp2p.log"
+        log "启动失败,请查看日志: ${LOG_DIR}/openp2p.log"
+        tail -10 "${LOG_DIR}/openp2p.log"
+        rm -f "$PID_FILE"
+        update_status "启动失败" "$TOKEN"
         exit 1
     fi
 }
@@ -142,24 +162,40 @@ stop() {
         if kill -0 $PID 2>/dev/null; then
             echo "正在停止 OpenP2P..."
             log "正在停止 OpenP2P..."
-            kill $PID
+            kill $PID 2>/dev/null
+            # 等待最多 5 秒优雅退出,超时强杀
+            local i=0
+            while kill -0 $PID 2>/dev/null && [ $i -lt 5 ]; do
+                sleep 1
+                i=$((i + 1))
+            done
+            if kill -0 $PID 2>/dev/null; then
+                echo "进程未响应 SIGTERM,发送 SIGKILL"
+                log "进程未响应 SIGTERM,发送 SIGKILL"
+                kill -9 $PID 2>/dev/null
+                sleep 1
+            fi
             rm -f "$PID_FILE"
-            echo "已删除 PID 文件"
-            log "已删除 PID 文件"
+            echo "已停止 (PID: $PID)"
+            log "已停止 (PID: $PID)"
+            update_status "已停止" "-"
+        else
+            echo "OpenP2P 未运行 (PID文件已过期)"
+            log "OpenP2P 未运行 (PID文件已过期)"
+            rm -f "$PID_FILE"
+        fi
+    else
+        # PID 文件不存在时,兜底通过 pkill 清理残留
+        if pgrep -x openp2p >/dev/null 2>&1; then
+            echo "发现残留 openp2p 进程,正在清理..."
+            log "发现残留 openp2p 进程,正在清理..."
+            pkill -9 -x openp2p 2>/dev/null
             sleep 1
-            echo "OpenP2P 已停止"
-            log "OpenP2P 已停止"
             update_status "已停止" "-"
         else
             echo "OpenP2P 未运行"
             log "OpenP2P 未运行"
-            rm -f "$PID_FILE"
-            echo "已删除 PID 文件"
-            log "已删除 PID 文件"
         fi
-    else
-        echo "OpenP2P 未运行"
-        log "OpenP2P 未运行"
     fi
 }
 
@@ -186,7 +222,7 @@ status() {
             echo "OpenP2P 运行中"
             log "OpenP2P 运行中"
             echo ""
-            ps -ef | grep openp2p | grep -v grep
+            ps -ef | grep -w openp2p | grep -v grep
             echo ""
             echo "网络连接:"
             netstat -an 2>/dev/null | grep -E "27183|26188" | head -5

@@ -8,24 +8,26 @@ Android Magisk 模块，实现 OpenP2P 内网穿透服务的开机自启动和�
 
 本项目基于 [OpenP2P](https://github.com/openp2p-cn/openp2p) 官方项目打包为 Magisk 模块。
 
-- **上游项目**: https://github.com/openp2p-cn/openp2p  
-- **上游版本**: v3.25.8
-- **模块版本**: 32508
+- **上游项目**: https://github.com/openp2p-cn/openp2p
+- **上游版本**: v3.25.11
+- **模块版本**: v3.25.11 (versionCode 32511)
 
 ## ✨ 功能特性
 
 - ✅ 开机自启动
-- ✅ 进程守护（自动重启）
+- ✅ 进程守护（自动重启，MonitorInterval 可配）
 - ✅ 支持 start/stop/restart/status/log 管理命令
 - ✅ 从配置文件读取 Token
 - ✅ 自动获取设备名称
 - ✅ 兼容 easytier 等其他 VPN 模块（已修复网关冲突）
+- ✅ 全部参数从 `config.json` 读取（LogLevel/ShareBandwidth/ServerHost/TZ/Insecure 等）
+- ✅ 提供 `scripts/release.sh` 一键同步上游并打包
 
 ## 📦 安装
 
 ### 下载地址
 
-**[📥 下载 openp2p-magisk-v3.25.8.zip](https://github.com/232252/openp2p-magisk/releases/download/v3.25.8/openp2p-magisk-v3.25.8.zip)**
+**[📥 下载 openp2p-magisk-v3.25.11.zip](https://github.com/232252/openp2p-magisk/releases/download/v3.25.11/openp2p-magisk-v3.25.11.zip)**
 
 1. 下载 zip 文件
 2. Magisk Manager → 模块 → 从存储安装
@@ -43,9 +45,15 @@ Android Magisk 模块，实现 OpenP2P 内网穿透服务的开机自启动和�
 ```json
 {
   "network": {
-    "Token": 你的TOKEN数字,
-    "Node": "设备名称"
-  }
+    "Token": "你的TOKEN数字",
+    "Node": "设备名称",
+    "ShareBandwidth": 50,
+    "ServerHost": "api.openp2p.cn"
+  },
+  "LogLevel": 1,
+  "MonitorInterval": "10s",
+  "TLSInsecureSkipVerify": true,
+  "Forcev6": false
 }
 ```
 
@@ -68,6 +76,13 @@ Token 在 https://console.openp2p.cn 获取
 
 # 日志
 /data/adb/modules/openp2p/action.sh log
+```
+
+## 🛠 维护
+
+```bash
+# 同步上游最新版本并重新打包
+./scripts/release.sh v3.25.11
 ```
 
 ## 🔗 相关链接
