@@ -251,8 +251,10 @@ logs() {
 }
 
 # 主入口
-case "$1" in
-    start)
+# 无参数或未知参数默认执行 start,方便 Magisk 模块页面的"执行"按钮
+# 也兼容手动调用时省略命令的情况(issue #2)
+case "${1:-start}" in
+    start|"")
         start
         ;;
     stop)
@@ -264,12 +266,21 @@ case "$1" in
     status)
         status
         ;;
-    log)
+    log|logs)
         logs
         ;;
-    *)
+    -h|--help|help)
         echo "用法: $0 {start|stop|restart|status|log}"
-        log "用法: $0 {start|stop|restart|status|log}"
+        echo "  start    启动 OpenP2P (无参数时也是 start)"
+        echo "  stop     停止 OpenP2P"
+        echo "  restart  重启 OpenP2P"
+        echo "  status   查看运行状态"
+        echo "  log      查看最近 50 行日志"
+        exit 0
+        ;;
+    *)
+        echo "用法: $0 {start|stop|restart|status|log} (试试 --help)"
+        log "用法: $0 {start|stop|restart|status|log} (收到未知参数: $1)"
         exit 1
         ;;
 esac

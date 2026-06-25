@@ -115,7 +115,7 @@ jobs:
         VERSION=${{ steps.upstream.outputs.upstream_version }}
         echo "Downloading OpenP2P v$VERSION for arm64..."
         
-        curl -L -o openp2p.tar.gz "https://github.com/openp2p-cn/openp2p/releases/download/v${VERSION}/openp2p-${VERSION}.linux-arm64.tar.gz"
+        curl -L -o openp2p.tar.gz "https://github.com/openp2p-cn/openp2p/releases/download/v${VERSION}/openp2p-${VERSION}.android-arm64.tar.gz"
         tar -xzf openp2p.tar.gz
         chmod 755 openp2p
         rm openp2p.tar.gz
