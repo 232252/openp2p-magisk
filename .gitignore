@@ -1,18 +1,23 @@
-# 临时文件
+# 用户私有配置 - 含 Token
+config.json
+*.bak
 *.log
-*.tmp
-*.tar.gz
+__pycache__/
+*.pyc
 
-# 日志目录内容
-log/*
+# 构建产物 - 由 GitHub Actions 自动生成
+*.zip
 
-# 系统文件
-.DS_Store
-Thumbs.db
-
-# IDE
-.idea/
-.vscode/
-
-# PID 文件
+# 运行时产物
 *.pid
+*.sock
+*.tmp
+runtime/
+logs/
+
+# 敏感文件
+.env
+.env.*
+*.key
+*.pem
+_archive/
